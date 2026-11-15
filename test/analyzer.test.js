@@ -1,0 +1,11 @@
+import test from "node:test";import assert from "node:assert/strict";import {analyzeManifest,classifyVersion,normalizeLicense} from "../src/analyzer.js";
+test("classifica versões semver",()=>{assert.equal(classifyVersion("^1.2.3"),"faixa semver");assert.equal(classifyVersion("1.2.3"),"fixa");assert.equal(classifyVersion("*"),"ampla");assert.equal(classifyVersion("file:../pkg"),"origem externa/local");assert.equal(classifyVersion(">=1.0.0"),"intervalo");});
+test("normaliza licença",()=>{assert.equal(normalizeLicense("mit"),"MIT");assert.equal(normalizeLicense(null),"Não informada");});
+test("agrega dependências e grupos",()=>{const result=analyzeManifest(JSON.stringify({name:"demo",license:"MIT",dependencies:{a:"^1.0.0"},devDependencies:{b:"2.0.0"}}));assert.equal(result.count,2);assert.equal(result.totals.fixa,1);assert.equal(result.totals["faixa semver"],1);assert.equal(result.dependencies[0].name,"a");});
+test("aceita projeto sem dependências",()=>assert.equal(analyzeManifest("{}").count,0));
+test("rejeita JSON inválido",()=>assert.throws(()=>analyzeManifest("{"),/JSON inválido/));
+test("rejeita arrays",()=>assert.throws(()=>analyzeManifest("[]"),/objeto JSON/));
+test("rejeita seções inválidas",()=>assert.throws(()=>analyzeManifest('{"dependencies":[]}'),/deve ser um objeto/));
+test("limita tamanho",()=>assert.throws(()=>analyzeManifest(" ".repeat(2_000_001)),/2 MB/));
+test("limita número de entradas",()=>{const dependencies=Object.fromEntries(Array.from({length:5001},(_,i)=>["pkg"+i,"1.0.0"]));assert.throws(()=>analyzeManifest(JSON.stringify({dependencies})),/5.000/);});
+test("não executa ou busca código remoto",()=>{const result=analyzeManifest('{"dependencies":{"x":"https://example.org/a.tgz"}}');assert.equal(result.dependencies[0].classification,"origem externa/local");});
